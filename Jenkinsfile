@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "elilaura/literature-frontend"
         CONTAINER_NAME = "literature-frontend"
-        IMAGE_TAG = "latest"
+        IMAGE_TAG = "v.2.0.0"
     }
 
     stages {

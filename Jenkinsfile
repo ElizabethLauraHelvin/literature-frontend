@@ -3,31 +3,50 @@ pipeline {
 
     environment {
         IMAGE_NAME = "elilaura/literature-frontend"
-        IMAGE_TAG  = "v1.0.0"
+        CONTAINER_NAME = "literature-frontend"
+        IMAGE_TAG = "latest"
     }
 
     stages {
-
-        stage('Clone Repository') {
+        stage('Checkout Code') {
             steps {
-                git url: 'https://github.com/sinambela99/literature-frontend.git',
-                    branch: 'main'
+                checkout scm
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                """
+                script {
+                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                }
             }
         }
 
-        stage('Deploy with Docker Compose') {
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy Container') {
             steps {
                 sh """
-                docker compose down
-                docker compose up -d --build
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+
+                    docker run -d \\
+                      --name ${CONTAINER_NAME} \\
+                      -p 3000:3000 \\
+                      ${IMAGE_NAME}:${IMAGE_TAG}
                 """
             }
         }
@@ -35,10 +54,13 @@ pipeline {
 
     post {
         success {
-            echo 'Deployment sukses: frontend + nginx sudah jalan'
+            echo "Deployment berhasil 🎉"
         }
         failure {
-            echo 'Deployment gagal, cek log Jenkins'
+            echo "Deployment gagal ❌"
+        }
+        always {
+            sh "docker system prune -f"
         }
     }
 }

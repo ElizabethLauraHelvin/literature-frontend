@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "elilaura/literature-frontend"
         CONTAINER_NAME = "literature-frontend"
-        IMAGE_TAG = "v.1.0.0"
+        IMAGE_TAG = "latest"
     }
 
     stages {
@@ -39,27 +39,35 @@ pipeline {
 
         stage('Deploy Container') {
             steps {
-                sh """
-                    docker stop ${CONTAINER_NAME} || true
-                    docker rm ${CONTAINER_NAME} || true
-
-                    docker run -d \\
-                      --name ${CONTAINER_NAME} \\
-                      -p 3030:3000 \\
-                      ${IMAGE_NAME}:${IMAGE_TAG}
-                """
+                script {
+                    // Stop & remove container lama kalau ada
+                    sh """
+                        if [ \$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
+                          echo "Stopping existing container..."
+                          docker stop ${CONTAINER_NAME}
+                          docker rm ${CONTAINER_NAME}
+                        fi
+                        
+                        # Jalankan container baru
+                        docker run -d \\
+                          --name ${CONTAINER_NAME} \\
+                          -p 3030:3000 \\
+                          ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
             }
         }
     }
 
     post {
         success {
-            echo "Deployment berhasil 🎉"
+            echo "✅ Deployment berhasil"
         }
         failure {
-            echo "Deployment gagal ❌"
+            echo "❌ Deployment gagal"
         }
         always {
+            // Bersihkan dangling images & container yang tidak dipakai
             sh "docker system prune -f"
         }
     }

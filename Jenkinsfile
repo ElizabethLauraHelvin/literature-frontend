@@ -8,6 +8,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 checkout scm
@@ -29,32 +30,29 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh """
+                    sh '''
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                    """
+                    '''
                 }
             }
         }
 
         stage('Deploy Container') {
             steps {
-                script {
-                    // Stop & remove container lama kalau ada
-                    sh """
-                        if [ \$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
-                          echo "Stopping existing container..."
-                          docker stop ${CONTAINER_NAME}
-                          docker rm ${CONTAINER_NAME}
-                        fi
-                        
-                        # Jalankan container baru
-                        docker run -d \\
-                          --name ${CONTAINER_NAME} \\
-                          -p 3000:3000 \\
-                          ${IMAGE_NAME}:${IMAGE_TAG}
-                    """
-                }
+                sh '''
+                    echo "== Deploying container =="
+
+                    # stop container lama (kalau ada)
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+
+                    # run container baru
+                    docker run -d \
+                      --name ${CONTAINER_NAME} \
+                      -p 3000:3000 \
+                      ${IMAGE_NAME}:${IMAGE_TAG}
+                '''
             }
         }
     }
@@ -63,12 +61,17 @@ pipeline {
         success {
             echo "✅ Deployment berhasil"
         }
+
         failure {
             echo "❌ Deployment gagal"
         }
+
         always {
-            // Bersihkan dangling images & container yang tidak dipakai
-            sh "docker system prune -f"
+            echo "🧹 Cleaning unused Docker images (safe)"
+            sh '''
+                docker image prune -f || true
+                docker builder prune -f || true
+            '''
         }
     }
 }

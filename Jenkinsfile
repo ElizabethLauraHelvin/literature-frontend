@@ -25,7 +25,7 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
+                    credentialsId: 'elilaura/credentials',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
@@ -51,7 +51,7 @@ pipeline {
                         # Jalankan container baru
                         docker run -d \\
                           --name ${CONTAINER_NAME} \\
-                          -p 3030:3000 \\
+                          -p 3000:3000 \\
                           ${IMAGE_NAME}:${IMAGE_TAG}
                     """
                 }

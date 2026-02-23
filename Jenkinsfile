@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "elilaura/literature-frontend"
+        IMAGE_NAME     = "elilaura/literature-frontend"
         CONTAINER_NAME = "literature-frontend"
-        IMAGE_TAG = "v.2.0.0"
+        IMAGE_TAG      = "v2.0.0"
     }
 
     stages {
@@ -17,13 +17,14 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
-                }
+                sh '''
+                    echo "== Build Docker Image =="
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                '''
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Login & Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'elilaura/credentials',
@@ -31,8 +32,13 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
+                        echo "== Login Docker Hub =="
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                        echo "== Push Image =="
                         docker push ${IMAGE_NAME}:${IMAGE_TAG}
+
+                        docker logout
                     '''
                 }
             }
@@ -41,17 +47,21 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 sh '''
-                    echo "== Deploying container =="
+                    echo "== Deploying Container =="
 
-                    # stop container lama (kalau ada)
+                    # stop & remove container lama (kalau ada)
                     docker stop ${CONTAINER_NAME} || true
                     docker rm ${CONTAINER_NAME} || true
 
-                    # run container baru
+                    # jalankan container baru
                     docker run -d \
                       --name ${CONTAINER_NAME} \
                       -p 3000:3000 \
+                      --restart unless-stopped \
                       ${IMAGE_NAME}:${IMAGE_TAG}
+
+                    echo "== Container running =="
+                    docker ps | grep ${CONTAINER_NAME} || true
                 '''
             }
         }
@@ -67,7 +77,7 @@ pipeline {
         }
 
         always {
-            echo "🧹 Cleaning unused Docker images (safe)"
+            echo "🧹 Safe Docker cleanup"
             sh '''
                 docker image prune -f || true
                 docker builder prune -f || true

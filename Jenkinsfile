@@ -3,13 +3,12 @@ pipeline {
 
     environment {
         IMAGE_NAME = "elilaura/literature-frontend"
-        IMAGE_TAG  = "v1"
         CONTAINER_NAME = "literature-frontend"
+        IMAGE_TAG = "v.1.0.0"
     }
 
     stages {
-
-        stage('Checkout Source') {
+        stage('Checkout Code') {
             steps {
                 checkout scm
             }
@@ -17,36 +16,59 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                echo "== Building Docker image =="
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                '''
+                script {
+                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                }
             }
         }
 
-        stage('Run Container') {
+        stage('Push Docker Image') {
             steps {
-                sh '''
-                echo "== Stopping old container (if exists) =="
-                docker stop $CONTAINER_NAME || true
-                docker rm $CONTAINER_NAME || true
+                withCredentials([usernamePassword(
+                    credentialsId: 'elilaura/credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
 
-                echo "== Running new container =="
-                docker run -d \
-                  --name $CONTAINER_NAME \
-                  -p 3000:3000 \
-                  $IMAGE_NAME:$IMAGE_TAG
-                '''
+        stage('Deploy Container') {
+            steps {
+                script {
+                    // Stop & remove container lama kalau ada
+                    sh """
+                        if [ \$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
+                          echo "Stopping existing container..."
+                          docker stop ${CONTAINER_NAME}
+                          docker rm ${CONTAINER_NAME}
+                        fi
+                        
+                        # Jalankan container baru
+                        docker run -d \\
+                          --name ${CONTAINER_NAME} \\
+                          -p 3030:3000 \\
+                          ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ Container berhasil dijalankan"
+            echo "✅ Deployment berhasil"
         }
         failure {
-            echo "❌ Pipeline gagal — cek error di stage atas"
+            echo "❌ Deployment gagal"
+        }
+        always {
+            // Bersihkan dangling images & container yang tidak dipakai
+            sh "docker image prune -f"
         }
     }
 }

@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  frontend:
+    image: elilaura/literature-frontend:v.1.0.0
+    container_name: literature-frontend
+    expose:
+      - "3000"
+    restart: always
+    networks:
+      - literature-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: literature-nginx
+    ports:
+      - "3030:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    restart: always
+    networks:
+      - literature-net
+
+networks:
+  literature-net:
+    driver: bridge

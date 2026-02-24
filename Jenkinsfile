@@ -3,8 +3,9 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME     = "elilaura/compose-literature-frontend"
-        IMAGE_TAG      = "v.1.0.0"
+        IMAGE_NAME = "elilaura/compose-literature-frontend"
+        IMAGE_TAG  = "v.1.0.0"
+        COMPOSE_DIR = "/var/jenkins_home/workspace/pipeline-compose-6_main/nginx"
     }
 
     stages {
@@ -40,16 +41,18 @@ pipeline {
         stage('Deploy Compose – Literature Frontend') {
             steps {
                 echo "Deploy Compose – Literature Frontend"
-                sh """
-                    # Hapus container lama Compose & legacy
-                    docker rm -f literature-frontend-compose || true
-                    docker rm -f literature-nginx || true
+                dir("${COMPOSE_DIR}") {
+                    sh """
+                        # Hapus container lama
+                        docker rm -f literature-frontend-compose || true
+                        docker rm -f literature-nginx || true
 
-                    # Jalankan Compose
-                    docker compose down || true
-                    docker compose pull
-                    docker compose up -d
-                """
+                        # Jalankan Compose
+                        docker compose down || true
+                        docker compose pull
+                        docker compose up -d
+                    """
+                }
             }
         }
 

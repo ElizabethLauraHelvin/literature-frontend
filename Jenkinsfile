@@ -3,76 +3,65 @@ pipeline {
 
     environment {
         IMAGE_NAME     = "elilaura/literature-frontend"
+        IMAGE_TAG      = "v.1.0.0"
         CONTAINER_NAME = "literature-frontend"
-        IMAGE_TAG      = "v.2.0.0"
     }
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    checkout scm
-                }
-                echo "ℹ️ Stage Checkout Code selesai"
+                echo "Checkout source code"
+                checkout scm
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Image') {
             steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                echo "Build Docker image ${IMAGE_NAME}:${IMAGE_TAG}"
+                sh """
+                  docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                """
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                echo "Push image to Docker Hub"
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh """
-                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                      docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     """
                 }
-                echo "ℹ️ Stage Build Docker Image selesai"
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh """
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                        """
-                    }
-                }
-                echo "ℹ️ Stage Push Docker Image selesai"
             }
         }
 
         stage('Deploy Container') {
             steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    sh """
-                        docker rm -f ${CONTAINER_NAME} || true
-                        docker run -d \
-                          --name ${CONTAINER_NAME} \
-                          -p 3000:3000 \
-                          ${IMAGE_NAME}:${IMAGE_TAG}
-                    """
-                }
-                echo "ℹ️ Stage Deploy Container selesai"
+                echo "Deploy container on port 3000"
+                sh """
+                  docker rm -f ${CONTAINER_NAME} || true
+
+                  docker run -d \
+                    --name ${CONTAINER_NAME} \
+                    -p 3000:3000 \
+                    ${IMAGE_NAME}:${IMAGE_TAG}
+                """
             }
         }
     }
 
     post {
         success {
-            echo "✅ PIPELINE SELESAI (SUCCESS)"
+            echo "Deployment sukses (v.1.0.0)"
         }
-        unstable {
-            echo "⚠️ PIPELINE SELESAI (UNSTABLE – ADA ERROR TAPI TIDAK FAIL)"
-        }
-        always {
-            sh "docker image prune -f || true"
-            echo "🧹 Cleanup selesai"
+        failure {
+            echo "Deployment gagal"
         }
     }
 }

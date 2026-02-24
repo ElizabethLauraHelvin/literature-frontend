@@ -6,7 +6,7 @@ pipeline {
         IMAGE_NAME = "elilaura/compose-literature-frontend"
         IMAGE_TAG  = "v.1.0.0"
         DOCKER_HOST = "unix:///var/run/docker.sock"
-        COMPOSE_DIR = "/var/jenkins_home/workspace/pipeline-compose/literature-frontend"
+
     }
 
     stages {
@@ -19,7 +19,7 @@ pipeline {
 
         stage('Build & Push Image') {
             steps {
-                dir("${COMPOSE_DIR}") {
+                dir("literature-frontend") {
                     sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                 }
                 withCredentials([usernamePassword(
@@ -38,7 +38,7 @@ pipeline {
 
         stage('Deploy with Docker Compose') {
             steps {
-                dir("${COMPOSE_DIR}") {
+                dir("literature-frontend") {
                     sh """
                         docker compose down || true
                         docker compose pull

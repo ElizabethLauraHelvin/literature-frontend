@@ -3,7 +3,7 @@ version: "3.8"
 services:
   frontend:
     image: elilaura/literature-frontend:v.1.0.0
-    container_name: literature-frontend
+    container_name: literature-frontend-compose
     expose:
       - "3000"
     restart: always

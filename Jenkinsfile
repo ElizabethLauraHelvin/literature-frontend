@@ -41,7 +41,7 @@ pipeline {
         stage('Deploy with Docker Compose') {
             steps {
                 sh """
-                    docker compose down || true
+                    docker compose down -v --remove-orphans || true
                     docker compose pull
                     docker compose up -d --build --force-recreate
                 """

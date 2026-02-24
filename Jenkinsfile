@@ -5,23 +5,26 @@ pipeline {
     environment {
         IMAGE_NAME = "elilaura/compose-literature-frontend"
         IMAGE_TAG  = "v.1.0.0"
-        DOCKER_HOST = "unix:///var/run/docker.sock"
-
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build & Push Image') {
+        stage('Build Docker Image') {
             steps {
-                dir("literature-frontend") {
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                }
+                // langsung di folder workspace utama
+                sh "pwd"
+                sh "ls -l"
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-creds',
                     usernameVariable: 'DOCKER_USER',
@@ -35,16 +38,13 @@ pipeline {
             }
         }
 
-
         stage('Deploy with Docker Compose') {
             steps {
-                dir("literature-frontend") {
-                    sh """
-                        docker compose down || true
-                        docker compose pull
-                        docker compose up -d --build --force-recreate
-                    """
-                }
+                sh """
+                    docker compose down || true
+                    docker compose pull
+                    docker compose up -d --build --force-recreate
+                """
             }
         }
 
@@ -56,12 +56,11 @@ pipeline {
     }
 
     post {
-        success { echo "✅ Deployment Berhasil" }
-        failure { echo "❌ Deployment Gagal" }
+        success { echo "✅ Deployment sukses" }
+        failure { echo "❌ Deployment gagal" }
         always { sh "docker system prune -f" }
     }
 }
-
 
 //Manual
 // pipeline {

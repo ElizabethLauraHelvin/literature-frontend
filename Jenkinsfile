@@ -6,7 +6,7 @@ pipeline {
         IMAGE_NAME = "elilaura/compose-literature-frontend"
         IMAGE_TAG  = "v.1.0.0"
         DOCKER_HOST = "unix:///var/run/docker.sock"
-        COMPOSE_DIR = "/literature-frontend"
+        COMPOSE_DIR = "/var/jenkins_home/workspace/pipeline-compose"
     }
 
     stages {

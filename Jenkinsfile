@@ -8,9 +8,18 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 checkout scm
+            }
+            post {
+                success {
+                    echo "✅ Stage Checkout Code: berhasil"
+                }
+                failure {
+                    echo "❌ Stage Checkout Code: gagal"
+                }
             }
         }
 
@@ -18,6 +27,14 @@ pipeline {
             steps {
                 script {
                     docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                }
+            }
+            post {
+                success {
+                    echo "✅ Stage Build Docker Image: berhasil"
+                }
+                failure {
+                    echo "❌ Stage Build Docker Image: gagal"
                 }
             }
         }
@@ -35,18 +52,34 @@ pipeline {
                     """
                 }
             }
+            post {
+                success {
+                    echo "✅ Stage Push Docker Image: berhasil"
+                }
+                failure {
+                    echo "❌ Stage Push Docker Image: gagal"
+                }
+            }
         }
 
         stage('Deploy Container') {
             steps {
                 sh """
                 docker rm -f ${CONTAINER_NAME} || true
-        
+
                 docker run -d \
                   --name ${CONTAINER_NAME} \
                   -p 3030:3000 \
                   ${IMAGE_NAME}:${IMAGE_TAG}
                 """
+            }
+            post {
+                success {
+                    echo "✅ Stage Deploy Container: berhasil"
+                }
+                failure {
+                    echo "❌ Stage Deploy Container: gagal"
+                }
             }
         }
     }
@@ -59,7 +92,6 @@ pipeline {
             echo "❌ Deployment gagal"
         }
         always {
-            // Bersihkan dangling images & container yang tidak dipakai
             sh "docker image prune -f"
         }
     }

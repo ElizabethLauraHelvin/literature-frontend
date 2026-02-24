@@ -3,8 +3,8 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "elilaura/compose-literature-frontend"
-        IMAGE_TAG  = "v.1.0.0"
+        IMAGE_NAME     = "elilaura/compose-literature-frontend"
+        IMAGE_TAG      = "v.1.0.0"
     }
 
     stages {
@@ -12,21 +12,17 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo "Checkout source code"
+                deleteDir() // Bersih workspace dulu
                 checkout scm
             }
         }
 
-        stage('Build Image') {
+        stage('Build & Push Image') {
             steps {
                 echo "Build Docker image ${IMAGE_NAME}:${IMAGE_TAG}"
                 sh """
-                  docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                 """
-            }
-        }
-
-        stage('Push Image') {
-            steps {
                 echo "Push image to Docker Hub"
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-creds',
@@ -34,31 +30,43 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh """
-                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                      docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     """
                 }
             }
         }
 
-        stage('Compose – Literature Frontend') {
+        stage('Deploy Compose – Literature Frontend') {
             steps {
                 echo "Deploy Compose – Literature Frontend"
                 sh """
-                  docker compose down || true
-                  docker compose pull
-                  docker compose up -d
+                    # Hapus container lama Compose & legacy
+                    docker rm -f literature-frontend-compose || true
+                    docker rm -f literature-nginx || true
+
+                    # Jalankan Compose
+                    docker compose down || true
+                    docker compose pull
+                    docker compose up -d
                 """
+            }
+        }
+
+        stage('Verify') {
+            steps {
+                echo "List running containers"
+                sh "docker ps"
             }
         }
     }
 
     post {
         success {
-            echo "Deployment sukses (compose-literature-frontend v.1.0.0)"
+            echo "✅ Deployment sukses (Compose – Literature Frontend)"
         }
         failure {
-            echo "Deployment gagal"
+            echo "❌ Deployment gagal"
         }
     }
 }

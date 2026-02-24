@@ -1,12 +1,15 @@
 FROM node:18-alpine
 
-WORKDIR apps
+WORKDIR /apps
+
+COPY package*.json ./
+RUN npm install
 
 COPY . .
 
-RUN npm install
-
 RUN npm install pm2 -g
+
+ENV NODE_OPTIONS=--openssl-legacy-provider
 
 EXPOSE 3000
 

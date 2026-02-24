@@ -3,28 +3,25 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "elilaura/compose-literature-frontend"
+        IMAGE_NAME = "elilaura/literature-frontend"
         IMAGE_TAG  = "v.1.0.0"
-        COMPOSE_DIR = "/var/jenkins_home/workspace/pipeline-compose-6_main/nginx"
+        DOCKER_HOST = "unix:///var/run/docker.sock"
+        COMPOSE_DIR = "/var/jenkins_home/workspace/pipeline-compose-6_main"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                echo "Checkout source code"
-                deleteDir() // Bersih workspace dulu
                 checkout scm
             }
         }
 
         stage('Build & Push Image') {
             steps {
-                echo "Build Docker image ${IMAGE_NAME}:${IMAGE_TAG}"
-                sh """
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                """
-                echo "Push image to Docker Hub"
+                dir("${COMPOSE_DIR}") {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-creds',
                     usernameVariable: 'DOCKER_USER',
@@ -38,39 +35,30 @@ pipeline {
             }
         }
 
-        stage('Deploy Compose – Literature Frontend') {
+
+        stage('Deploy with Docker Compose') {
             steps {
-                echo "Deploy Compose – Literature Frontend"
                 dir("${COMPOSE_DIR}") {
                     sh """
-                        # Hapus container lama
-                        docker rm -f literature-frontend-compose || true
-                        docker rm -f literature-nginx || true
-
-                        # Jalankan Compose
                         docker compose down || true
                         docker compose pull
-                        docker compose up -d
+                        docker compose up -d --build --force-recreate
                     """
                 }
             }
         }
 
-        stage('Verify') {
+        stage('Verify Deployment') {
             steps {
-                echo "List running containers"
                 sh "docker ps"
             }
         }
     }
 
     post {
-        success {
-            echo "✅ Deployment sukses (Compose – Literature Frontend)"
-        }
-        failure {
-            echo "❌ Deployment gagal"
-        }
+        success { echo "✅ Deployment Berhasil" }
+        failure { echo "❌ Deployment Gagal" }
+        always { sh "docker system prune -f" }
     }
 }
 

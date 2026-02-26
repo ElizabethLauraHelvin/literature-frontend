@@ -4,6 +4,9 @@ services:
   frontend:
     image: elilaura/compose-literature-frontend:v.1.0.0
     container_name: literature-frontend-compose
+    environment:
+      - NODE_OPTIONS=
+      - PORT=3000
     expose:
       - "3000"
     restart: always

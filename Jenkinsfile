@@ -12,7 +12,7 @@ pipeline {
 
         stage('Pull Code') {
             steps {
-                git "${GIT_REPO}"
+                git branch: 'main', url: 'https://github.com/ElizabethLauraHelvin/literature-frontend.git'
             }
         }
 

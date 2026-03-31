@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: literature-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: literature-frontend
+  template:
+    metadata:
+      labels:
+        app: literature-frontend
+    spec:
+      imagePullSecrets:
+        - name: acr-secret
+      containers:
+        - name: literature-frontend
+          image: elizabethacr.azurecr.io/literature-frontend:v1.0.0
+          ports:
+            - containerPort: 80

@@ -12,26 +12,7 @@ pipeline {
 
         stage('Pull Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/ElizabethLauraHelvin/literature-frontend.git'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                # Install Docker (jika belum ada)
-                if ! command -v docker &> /dev/null
-                then
-                    curl -fsSL https://get.docker.com -o get-docker.sh
-                    sh get-docker.sh
-                fi
-
-                # Install Azure CLI (jika belum ada)
-                if ! command -v az &> /dev/null
-                then
-                    curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-                fi
-                '''
+                git branch: 'main', url: "${GIT_REPO}"
             }
         }
 

@@ -23,17 +23,21 @@ spec:
     - name: docker-sock
       mountPath: /var/run/docker.sock
 
-  - name: kubectl
-    image: registry.k8s.io/kubectl:v1.28.0
-    command:
-    - sh
-    args:
-    - -c
-    - sleep 999999
-    tty: true
-    volumeMounts:
-    - name: kube-config
-      mountPath: /root/.kube
+    - name: kubectl
+      image: ubuntu:22.04
+      command:
+      - sh
+      args:
+      - -c
+      - |
+        apt update && apt install -y curl && \
+        curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" && \
+        install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+        sleep 999999
+      tty: true
+      volumeMounts:
+      - name: kube-config
+        mountPath: /root/.kube
 
   volumes:
   - name: docker-sock

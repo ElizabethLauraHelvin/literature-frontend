@@ -7,7 +7,9 @@ kind: Pod
 spec:
   containers:
   - name: build-tools
-    image: docker:24.0.5
+    # Image ini sudah berisi DOCKER dan KUBECTL sekaligus.
+    # Sangat stabil dan tidak perlu 'curl' atau 'apk add' lagi.
+    image: lachlanevenson/k8s-kubectl:v1.28.0 
     command: ["cat"]
     tty: true
     securityContext:
@@ -24,9 +26,9 @@ spec:
     }
 
     environment {
-        ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
-        IMAGE_NAME       = "literature-frontend"
-        IMAGE_TAG        = "v${env.BUILD_NUMBER}"
+        ACR_SERVER = "elizabethacr.azurecr.io"
+        APP_NAME   = "literature-frontend"
+        IMAGE_TAG  = "v${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -34,14 +36,13 @@ spec:
             steps {
                 container('build-tools') {
                     script {
-                        // Build & Tag
-                        sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                        sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                        // 1. Build & Tag
+                        sh "docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} ."
 
-                        // Login & Push
+                        // 2. Login & Push
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                            sh "echo ${PASS} | docker login ${ACR_LOGIN_SERVER} -u ${USER} --password-stdin"
-                            sh "docker push ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                            sh "echo ${PASS} | docker login ${ACR_SERVER} -u ${USER} --password-stdin"
+                            sh "docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -52,22 +53,15 @@ spec:
             steps {
                 container('build-tools') {
                     script {
-                        // INSTALL KUBECTL ULANG DI SINI (PASTIKAN URL BENAR)
-                        sh '''
-                        apk add --no-cache curl
-                        curl -Lo /usr/local/bin/kubectl "https://k8s.io"
-                        chmod +x /usr/local/bin/kubectl
-                        '''
-
-                        // UPDATE MANIFEST & APPLY
-                        // Pastikan di deployment.yaml kamu ada teks: ${IMAGE_TAG}
-                        sh """
-                        sed -i "s|\\\${IMAGE_TAG}|${IMAGE_TAG}|g" deployment.yaml
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
+                        // 3. Update Manifest & Apply
+                        // Perhatikan penggunaan triple backslash agar 'sed' mencari teks murni ${IMAGE_TAG}
+                        sh "sed -i 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml"
                         
-                        echo "DEPLOYMENT SUCCESSFUL: ${IMAGE_TAG}"
-                        """
+                        // Perintah kubectl langsung jalan karena sudah ada di dalam image
+                        sh "kubectl apply -f deployment.yaml"
+                        sh "kubectl apply -f service.yaml"
+                        
+                        echo "DEPLOYMENT BERHASIL: ${IMAGE_TAG}"
                     }
                 }
             }

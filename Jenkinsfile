@@ -1,5 +1,19 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            spec:
+              containers:
+              - name: kaniko
+                image: gcr.io/kaniko-project/executor:latest
+                command:
+                - cat
+                tty: true
+            """
+        }  
+    }
 
     environment {
         ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
@@ -16,12 +30,37 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Push Image (Kaniko)') {
             steps {
-                sh '''
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                '''
+                container('kaniko') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'acr-credentials',
+                        usernameVariable: 'ACR_USER',
+                        passwordVariable: 'ACR_PASS'
+                    )]) {
+                        sh '''
+                        mkdir -p /kaniko/.docker
+        
+                        cat <<EOF > /kaniko/.docker/config.json
+                        {
+                          "auths": {
+                            "$ACR_LOGIN_SERVER": {
+                              "username": "$ACR_USER",
+                              "password": "$ACR_PASS"
+                            }
+                          }
+                        }
+                        EOF
+        
+                        /kaniko/executor \
+                          --dockerfile=Dockerfile \
+                          --context=$(pwd) \
+                          --destination=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG \
+                          --insecure \
+                          --skip-tls-verify
+                        '''
+                    }
+                }
             }
         }
 

@@ -73,8 +73,7 @@ spec:
                 container('build-tools') {
                     script {
                         sh '''
-                        export KUBECONFIG=/root/.kube/config
-                        kubectl get nodes
+                        sed -i 's|\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml
                         kubectl apply -f deployment.yaml
                         kubectl apply -f service.yaml
                         '''

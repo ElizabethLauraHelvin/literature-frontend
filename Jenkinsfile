@@ -5,6 +5,9 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  securityContext:
+    fsGroup: 1000
+
   containers:
   - name: docker
     image: docker:24.0.5
@@ -14,6 +17,8 @@ spec:
     - -c
     - sleep 999999
     tty: true
+    securityContext:
+      privileged: true
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
@@ -26,11 +31,18 @@ spec:
     - -c
     - sleep 999999
     tty: true
+    volumeMounts:
+    - name: kube-config
+      mountPath: /root/.kube
 
   volumes:
   - name: docker-sock
     hostPath:
       path: /var/run/docker.sock
+
+  - name: kube-config
+    secret:
+      secretName: kubeconfig
 """
         }
     }
@@ -54,6 +66,7 @@ spec:
             steps {
                 container('docker') {
                     sh '''
+                    docker version
                     docker build -t $IMAGE_NAME:$IMAGE_TAG .
                     docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
                     '''
@@ -102,11 +115,20 @@ spec:
             steps {
                 container('kubectl') {
                     sh '''
-                    kubectl get pods
+                    kubectl get pods -o wide
                     kubectl get svc
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "SUCCESS: Build & Deploy berhasil"
+        }
+        failure {
+            echo "FAILED: Cek log stage yang error"
         }
     }
 }

@@ -29,24 +29,27 @@ spec:
         IMAGE_TAG        = "v${env.BUILD_NUMBER}"
     }
 
-    stages {
         stage('Setup & Build') {
             steps {
                 container('build-tools') {
                     script {
-                        // Install Kubectl Manual (Cepat & Anti ImagePull Error)
+                        // FIX: Gunakan URL download langsung (Direct Link)
                         sh '''
                         apk add --no-cache curl
-                        curl -LO "https://k8s.io"
+                        # Download langsung ke file bernama 'kubectl'
+                        curl -Lo kubectl "https://k8s.io"
                         chmod +x kubectl
                         mv kubectl /usr/local/bin/
+                        
+                        # Cek apakah sudah terinstal
+                        kubectl version --client
                         '''
 
                         // Build & Push ke ACR
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'ACR_USER', passwordVariable: 'ACR_PASS')]) {
                             sh """
                             docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
-                            echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
+                            echo "$ACR_PASS" | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
                             docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
                             """
                         }
@@ -54,6 +57,7 @@ spec:
                 }
             }
         }
+
 
         stage('Deploy') {
             steps {

@@ -38,16 +38,14 @@ spec:
         ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
         IMAGE_NAME       = "literature-frontend"
         IMAGE_TAG        = "v${env.BUILD_NUMBER}"
-        GIT_REPO         = "https://github.com"
     }
 
     stages {
         stage('Build & Push') {
             steps {
                 container('docker') {
-                    // Pindahkan checkout ke dalam blok container
-                    git branch: 'main', url: "${GIT_REPO}"
-                    
+                    // JANGAN panggil 'git branch...' di sini. 
+                    // Kode sudah otomatis ada dari tahap 'Declarative: Checkout SCM'
                     withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                         sh """
                         docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
@@ -63,7 +61,7 @@ spec:
             steps {
                 container('kubectl') {
                     sh """
-                    # Menggunakan double quote agar variable IMAGE_TAG terbaca
+                    # Gunakan double quote agar variable IMAGE_TAG terbaca
                     sed -i "s|image:.*|image: $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g" deployment.yaml
                     
                     kubectl apply -f deployment.yaml

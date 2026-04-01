@@ -8,15 +8,23 @@ spec:
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:latest
+    command:
+    - /busybox/sh
+    args:
+    - -c
+    - sleep 999999
     tty: true
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ["sleep"]
-    args: ["999999"]
+    command:
+    - sh
+    args:
+    - -c
+    - sleep 999999
     tty: true
 """
-        }  
+        }
     }
 
     environment {
@@ -59,7 +67,8 @@ EOF
                         /kaniko/executor \
                           --dockerfile=Dockerfile \
                           --context=$(pwd) \
-                          --destination=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                          --destination=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG \
+                          --skip-tls-verify
                         '''
                     }
                 }
@@ -77,7 +86,7 @@ EOF
             }
         }
 
-        stage('Verify Deployment') {
+        stage('Verify') {
             steps {
                 container('kubectl') {
                     sh '''
@@ -87,10 +96,5 @@ EOF
                 }
             }
         }
-    }
-
-    post {
-        success { echo "Deployment sukses" }
-        failure { echo "Deployment gagal" }
     }
 }

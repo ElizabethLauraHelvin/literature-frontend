@@ -36,17 +36,17 @@ spec:
     }
 
     stages {
-        stage('Setup Tools') {
+       stage('Setup Tools') {
             steps {
                 container('build-tools') {
-                    script {
-                        // Install kubectl secara instan di dalam pod agent
-                        sh '''
-                        apk add --no-cache curl
-                        curl -Lo /usr/local/bin/kubectl "https://googleapis.com"
-                        chmod +x /usr/local/bin/kubectl
-                        '''
-                    }
+                    sh '''
+                    apk add --no-cache curl
+        
+                    curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+                    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        
+                    kubectl version --client
+                    '''
                 }
             }
         }
@@ -72,14 +72,12 @@ spec:
             steps {
                 container('build-tools') {
                     script {
-                        // 1. Ganti tulisan ${IMAGE_TAG} di file yaml dengan versi build terbaru
-                        sh "sed -i 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml"
-                        
-                        // 2. Terapkan perubahan ke Cluster
-                        sh "kubectl apply -f deployment.yaml"
-                        sh "kubectl apply -f service.yaml"
-                        
-                        echo "MANTAP! Aplikasi sudah terdeploy dengan tag: ${IMAGE_TAG}"
+                        sh '''
+                        export KUBECONFIG=/root/.kube/config
+                        kubectl get nodes
+                        kubectl apply -f deployment.yaml
+                        kubectl apply -f service.yaml
+                        '''
                     }
                 }
             }

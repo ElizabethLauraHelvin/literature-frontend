@@ -2,16 +2,20 @@ pipeline {
     agent {
         kubernetes {
             yaml """
-            apiVersion: v1
-            kind: Pod
-            spec:
-              containers:
-              - name: kaniko
-                image: gcr.io/kaniko-project/executor:latest
-                command:
-                - /busybox/cat
-                tty: true
-            """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    tty: true
+
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["sleep"]
+    args: ["999999"]
+    tty: true
+"""
         }  
     }
 
@@ -40,94 +44,53 @@ pipeline {
                     )]) {
                         sh '''
                         mkdir -p /kaniko/.docker
-        
+
                         cat <<EOF > /kaniko/.docker/config.json
-                        {
-                          "auths": {
-                            "$ACR_LOGIN_SERVER": {
-                              "username": "$ACR_USER",
-                              "password": "$ACR_PASS"
-                            }
-                          }
-                        }
-                        EOF
-        
+{
+  "auths": {
+    "$ACR_LOGIN_SERVER": {
+      "username": "$ACR_USER",
+      "password": "$ACR_PASS"
+    }
+  }
+}
+EOF
+
                         /kaniko/executor \
                           --dockerfile=Dockerfile \
                           --context=$(pwd) \
-                          --destination=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG \
-                          --insecure \
-                          --skip-tls-verify
+                          --destination=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
                         '''
                     }
                 }
             }
         }
 
-        stage('Login to ACR') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'acr-credentials',
-                    usernameVariable: 'ACR_USER',
-                    passwordVariable: 'ACR_PASS'
-                )]) {
-                    sh '''
-                    echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Push Image to ACR') {
-            steps {
-                sh '''
-                docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                '''
-            }
-        }
-
-        stage('Create Image Pull Secret (K8s)') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'acr-credentials',
-                    usernameVariable: 'ACR_USER',
-                    passwordVariable: 'ACR_PASS'
-                )]) {
-                    sh '''
-                    kubectl delete secret acr-secret || true
-
-                    kubectl create secret docker-registry acr-secret \
-                      --docker-server=$ACR_LOGIN_SERVER \
-                      --docker-username=$ACR_USER \
-                      --docker-password=$ACR_PASS \
-                      --docker-email=test@test.com
-                    '''
-                }
-            }
-        }
-
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                kubectl apply -f deployment.yaml
-                kubectl apply -f service.yaml
-                '''
+                container('kubectl') {
+                    sh '''
+                    kubectl apply -f deployment.yaml
+                    kubectl apply -f service.yaml
+                    '''
+                }
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                sh '''
-                kubectl get pods
-                kubectl get svc
-                '''
+                container('kubectl') {
+                    sh '''
+                    kubectl get pods
+                    kubectl get svc
+                    '''
+                }
             }
         }
     }
 
-     post {
+    post {
         success { echo "Deployment sukses" }
         failure { echo "Deployment gagal" }
     }
-
 }

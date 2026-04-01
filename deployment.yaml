@@ -16,6 +16,6 @@ spec:
         - name: acr-secret
       containers:
         - name: literature-frontend
-          image: elizabethacr.azurecr.io/literature-frontend:v1.0.0
+          image: elizabethacr.azurecr.io/literature-frontend:${IMAGE_TAG}
           ports:
             - containerPort: 80

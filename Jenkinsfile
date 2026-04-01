@@ -7,7 +7,8 @@ kind: Pod
 spec:
   containers:
   - name: build-tools
-    image: docker:24.0.5
+    # Image ini SUDAH BERISI docker dan kubectl secara bawaan.
+    image: google/cloud-sdk:alpine
     command: ["cat"]
     tty: true
     securityContext:
@@ -34,9 +35,10 @@ spec:
             steps {
                 container('build-tools') {
                     script {
-                        // 1. Build & Push (Ini sudah pernah sukses di build v32 kamu)
+                        // 1. Build Image (Docker sudah ada di image ini)
                         sh "docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} ."
                         
+                        // 2. Login & Push
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                             sh "echo ${PASS} | docker login ${ACR_SERVER} -u ${USER} --password-stdin"
                             sh "docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}"
@@ -50,27 +52,14 @@ spec:
             steps {
                 container('build-tools') {
                     script {
-                        // 2. INSTALL KUBECTL DENGAN URL YANG SUDAH DIPERBAIKI (DIRECT LINK)
-                        // Perhatikan: Menggunakan URL googleapis agar lebih stabil dibanding dl.k8s.io
-                        sh '''
-                        apk add --no-cache curl
-                        curl -Lo /usr/local/bin/kubectl "https://googleapis.com"
-                        chmod +x /usr/local/bin/kubectl
+                        // 3. Update Manifest (sed mencari tulisan ${IMAGE_TAG} di yaml kamu)
+                        sh "sed -i 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml"
                         
-                        # Verifikasi apakah yang terdownload benar aplikasi (bukan HTML)
-                        kubectl version --client
-                        '''
-
-                        // 3. UPDATE MANIFEST & APPLY
-                        sh """
-                        # Sed mencari teks ${IMAGE_TAG} di file deployment.yaml
-                        sed -i "s|\\\${IMAGE_TAG}|${IMAGE_TAG}|g" deployment.yaml
+                        // 4. Jalankan kubectl (Sudah ada di image, tidak perlu install lagi)
+                        sh "kubectl apply -f deployment.yaml"
+                        sh "kubectl apply -f service.yaml"
                         
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
-                        
-                        echo "DEPLOYMENT SUKSES KE VERSI: ${IMAGE_TAG}"
-                        """
+                        echo "DEPLOYMENT BERHASIL: ${IMAGE_TAG}"
                     }
                 }
             }

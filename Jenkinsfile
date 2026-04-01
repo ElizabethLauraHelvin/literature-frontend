@@ -30,25 +30,25 @@ spec:
     environment {
         ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
         IMAGE_NAME = "literature-frontend"
-        IMAGE_TAG = "v1.0.0"
+        IMAGE_TAG = "v1"
         GIT_REPO = "https://github.com/ElizabethLauraHelvin/literature-frontend.git"
     }
 
     stages {
 
-        stage('Pull Code') {
+        stage('Clone') {
             steps {
                 git branch: 'main', url: "${GIT_REPO}"
             }
         }
 
-        stage('Build & Push Image (Kaniko)') {
+        stage('Build & Push (Kaniko)') {
             steps {
                 container('kaniko') {
                     withCredentials([usernamePassword(
                         credentialsId: 'acr-credentials',
-                        usernameVariable: 'ACR_USER',
-                        passwordVariable: 'ACR_PASS'
+                        usernameVariable: 'USER',
+                        passwordVariable: 'PASS'
                     )]) {
                         sh '''
                         mkdir -p /kaniko/.docker
@@ -57,8 +57,8 @@ spec:
 {
   "auths": {
     "$ACR_LOGIN_SERVER": {
-      "username": "$ACR_USER",
-      "password": "$ACR_PASS"
+      "username": "$USER",
+      "password": "$PASS"
     }
   }
 }
@@ -75,7 +75,7 @@ EOF
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy') {
             steps {
                 container('kubectl') {
                     sh '''
@@ -86,7 +86,7 @@ EOF
             }
         }
 
-        stage('Verify') {
+        stage('Check') {
             steps {
                 container('kubectl') {
                     sh '''

@@ -18,4 +18,4 @@ spec:
         - name: literature-frontend
           image: elizabethacr.azurecr.io/literature-frontend:${IMAGE_TAG}
           ports:
-            - containerPort: 80
+            - containerPort: 3000

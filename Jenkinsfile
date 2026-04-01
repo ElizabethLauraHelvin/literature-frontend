@@ -6,9 +6,8 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-  - name: build-tools
-    # Image ini SUDAH BERISI docker dan kubectl secara bawaan.
-    image: google/cloud-sdk:alpine
+  - name: docker-client
+    image: docker:24.0.5
     command: ["cat"]
     tty: true
     securityContext:
@@ -16,6 +15,10 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
+  - name: kubectl-client
+    image: bitnami/kubectl:latest
+    command: ["cat"]
+    tty: true
   volumes:
   - name: docker-sock
     hostPath:
@@ -33,12 +36,11 @@ spec:
     stages {
         stage('Build & Push ACR') {
             steps {
-                container('build-tools') {
+                // Gunakan container 'docker-client' untuk proses build
+                container('docker-client') {
                     script {
-                        // 1. Build Image (Docker sudah ada di image ini)
                         sh "docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} ."
                         
-                        // 2. Login & Push
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                             sh "echo ${PASS} | docker login ${ACR_SERVER} -u ${USER} --password-stdin"
                             sh "docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}"
@@ -50,12 +52,13 @@ spec:
 
         stage('Deploy to K8s') {
             steps {
-                container('build-tools') {
+                // Pindah ke container 'kubectl-client' untuk proses deploy
+                container('kubectl-client') {
                     script {
-                        // 3. Update Manifest (sed mencari tulisan ${IMAGE_TAG} di yaml kamu)
+                        // Update tag di deployment.yaml
                         sh "sed -i 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml"
                         
-                        // 4. Jalankan kubectl (Sudah ada di image, tidak perlu install lagi)
+                        // Jalankan apply
                         sh "kubectl apply -f deployment.yaml"
                         sh "kubectl apply -f service.yaml"
                         

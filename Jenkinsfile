@@ -12,6 +12,13 @@ spec:
     tty: true
     securityContext:
       privileged: true
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi" 
+        cpu: "1000m"
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock

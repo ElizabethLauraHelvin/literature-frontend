@@ -1,85 +1,94 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: docker-kubectl
-    image: docker:24.0.5
-    command: ["cat"]
-    tty: true
-    securityContext:
-      privileged: true
-    resources:
-      limits:
-        cpu: "1000m"
-        memory: "2Gi"
-      requests:
-        cpu: "500m"
-        memory: "1Gi"
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
-    - name: kube-config
-      mountPath: /root/.kube/config
-      subPath: config
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-  - name: kube-config
-    secret:
-      secretName: kubeconfig
-"""
-        }
-    }
+    agent any
 
     environment {
-        ACR_SERVER = "elizabethacr.azurecr.io"
-        APP_NAME   = "literature-frontend"
-        IMAGE_TAG  = "v${env.BUILD_NUMBER}"
+        ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
+        IMAGE_NAME = "literature-frontend"
+        IMAGE_TAG = "v1.0.0"
+        GIT_REPO = "https://github.com/ElizabethLauraHelvin/literature-frontend.git"
     }
 
     stages {
-        stage('Build, Push & Deploy') {
+
+        stage('Pull Code') {
             steps {
-                container('docker-kubectl') {
-                    script {
-                        // FIX: URL Direct Download Kubectl yang benar
-                        sh '''
-                        apk add --no-cache curl
-                        curl -LO "https://k8s.io"
-                        chmod +x kubectl
-                        mv kubectl /usr/local/bin/
-                        '''
+                git branch: 'main', url: "${GIT_REPO}"
+            }
+        }
 
-                        withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                            sh """
-                            docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} .
-                            echo "${PASS}" | docker login ${ACR_SERVER} -u ${USER} --password-stdin
-                            docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}
-                            """
-                        }
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                '''
+            }
+        }
 
-                        sh """
-                        # Pastikan file deployment.yaml ada di repo githubmu
-                        sed -i "s|image:.*|image: ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
-                        
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
-                        
-                        echo "Berhasil Deploy Versi: ${IMAGE_TAG}"
-                        """
-                    }
+        stage('Login to ACR') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr-credentials',
+                    usernameVariable: 'ACR_USER',
+                    passwordVariable: 'ACR_PASS'
+                )]) {
+                    sh '''
+                    echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
+                    '''
                 }
             }
         }
+
+        stage('Push Image to ACR') {
+            steps {
+                sh '''
+                docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Create Image Pull Secret (K8s)') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr-credentials',
+                    usernameVariable: 'ACR_USER',
+                    passwordVariable: 'ACR_PASS'
+                )]) {
+                    sh '''
+                    kubectl delete secret acr-secret || true
+
+                    kubectl create secret docker-registry acr-secret \
+                      --docker-server=$ACR_LOGIN_SERVER \
+                      --docker-username=$ACR_USER \
+                      --docker-password=$ACR_PASS \
+                      --docker-email=test@test.com
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl apply -f deployment.yaml
+                kubectl apply -f service.yaml
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                kubectl get pods
+                kubectl get svc
+                '''
+            }
+        }
     }
-    
-    post {
-        success { echo "Pipeline Selesai dengan Sukses!" }
-        failure { echo "Pipeline Gagal, periksa log di atas." }
+
+     post {
+        success { echo "Deployment sukses" }
+        failure { echo "Deployment gagal" }
     }
+
 }

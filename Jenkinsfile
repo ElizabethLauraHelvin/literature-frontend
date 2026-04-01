@@ -13,12 +13,12 @@ spec:
     securityContext:
       privileged: true
     resources:
-      requests:
-        cpu: "500m"
-        memory: "1Gi"
       limits:
         cpu: "1000m"
         memory: "2Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
@@ -47,15 +47,14 @@ spec:
             steps {
                 container('docker-kubectl') {
                     script {
-                        // 1. Install Kubectl di dalam container Docker (Cepat & Pasti Ada)
+                        // FIX URL KUBECTL: Menggunakan URL langsung agar stabil
                         sh '''
                         apk add --no-cache curl
-                        curl -LO "https://k8s.io(curl -L -s https://k8s.io)/bin/linux/amd64/kubectl"
+                        curl -LO "https://k8s.io"
                         chmod +x kubectl
                         mv kubectl /usr/local/bin/
                         '''
 
-                        // 2. Build & Push
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                             sh """
                             docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} .
@@ -64,15 +63,14 @@ spec:
                             """
                         }
 
-                        // 3. Deploy
                         sh """
-                        # Pastikan file manifest ada di repo
+                        # Gunakan double quotes agar variable terbaca shell
                         sed -i "s|image:.*|image: ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
                         
                         kubectl apply -f deployment.yaml
                         kubectl apply -f service.yaml
                         
-                        echo "Deployment Success: ${IMAGE_TAG}"
+                        echo "Deployment Berhasil ke Versi: ${IMAGE_TAG}"
                         """
                     }
                 }
@@ -81,8 +79,11 @@ spec:
     }
     
     post {
-        always {
-            cleanWs() // Membersihkan workspace agar disk tidak penuh
+        success {
+            echo "Pipeline Berhasil!"
+        }
+        failure {
+            echo "Pipeline Gagal, cek log di atas."
         }
     }
 }

@@ -1,39 +1,5 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: docker
-    image: docker:24.0.5
-    command: ["cat"]
-    tty: true
-    securityContext:
-      privileged: true
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
-  - name: kubectl
-    image: bitnami/kubectl:latest
-    command: ["cat"]
-    tty: true
-    volumeMounts:
-    - name: kube-config
-      mountPath: /root/.kube/config
-      subPath: config  # Asumsi key di Secret bernama 'config'
-
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-  - name: kube-config
-    secret:
-      secretName: kubeconfig
-"""
-        }
-    }
+    agent any
 
     environment {
         ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"

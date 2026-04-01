@@ -104,6 +104,9 @@ spec:
             steps {
                 container('kubectl') {
                     sh '''
+                    export KUBECONFIG=/root/.kube/config
+        
+                    kubectl get nodes
                     kubectl apply -f deployment.yaml
                     kubectl apply -f service.yaml
                     '''

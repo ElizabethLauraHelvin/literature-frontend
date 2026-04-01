@@ -7,7 +7,7 @@ kind: Pod
 spec:
   containers:
   - name: build-tools
-    image: docker:24.0.5  # Kita hanya pakai satu image ini saja yang sudah terbukti bisa di-pull
+    image: docker:24.0.5
     command: ["cat"]
     tty: true
     securityContext:
@@ -29,23 +29,21 @@ spec:
         IMAGE_TAG        = "v${env.BUILD_NUMBER}"
     }
 
+    stages {
         stage('Setup & Build') {
             steps {
                 container('build-tools') {
                     script {
-                        // FIX: Gunakan URL download langsung (Direct Link)
+                        // 1. Install Kubectl (Direct Download)
                         sh '''
                         apk add --no-cache curl
-                        # Download langsung ke file bernama 'kubectl'
                         curl -Lo kubectl "https://k8s.io"
                         chmod +x kubectl
                         mv kubectl /usr/local/bin/
-                        
-                        # Cek apakah sudah terinstal
                         kubectl version --client
                         '''
 
-                        // Build & Push ke ACR
+                        // 2. Build & Push ke ACR
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'ACR_USER', passwordVariable: 'ACR_PASS')]) {
                             sh """
                             docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
@@ -58,22 +56,26 @@ spec:
             }
         }
 
-
         stage('Deploy') {
             steps {
                 container('build-tools') {
                     sh """
-                    # Update manifest
+                    # Update manifest (Gunakan double quotes agar tag terbaca)
                     sed -i "s|image:.*|image: $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g" deployment.yaml
                     
                     # Apply ke Kubernetes
                     kubectl apply -f deployment.yaml
                     kubectl apply -f service.yaml
                     
-                    echo "Deployment Sukses!"
+                    echo "Deployment Berhasil ke Versi: $IMAGE_TAG"
                     """
                 }
             }
         }
+    }
+
+    post {
+        success { echo "HORE! Pipeline Sukses." }
+        failure { echo "YAH! Pipeline Gagal." }
     }
 }

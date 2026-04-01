@@ -5,45 +5,29 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
-  securityContext:
-    fsGroup: 1000
-
   containers:
   - name: docker
     image: docker:24.0.5
-    command:
-    - sh
-    args:
-    - -c
-    - sleep 999999
+    command: ["cat"]
     tty: true
     securityContext:
       privileged: true
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
-
-    - name: kubectl
-      image: ubuntu:22.04
-      command:
-      - sh
-      args:
-      - -c
-      - |
-        apt update && apt install -y curl && \
-        curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" && \
-        install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
-        sleep 999999
-      tty: true
-      volumeMounts:
-      - name: kube-config
-        mountPath: /root/.kube
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["cat"]
+    tty: true
+    volumeMounts:
+    - name: kube-config
+      mountPath: /root/.kube/config
+      subPath: config  # Asumsi key di Secret bernama 'config'
 
   volumes:
   - name: docker-sock
     hostPath:
       path: /var/run/docker.sock
-
   - name: kube-config
     secret:
       secretName: kubeconfig
@@ -53,53 +37,23 @@ spec:
 
     environment {
         ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
-        IMAGE_NAME = "literature-frontend"
-        IMAGE_TAG = "v1"
-        GIT_REPO = "https://github.com/ElizabethLauraHelvin/literature-frontend.git"
+        IMAGE_NAME       = "literature-frontend"
+        IMAGE_TAG        = "v${env.BUILD_NUMBER}" // Otomatis naik versinya
+        GIT_REPO         = "https://github.com/ElizabethLauraHelvin/literature-frontend.git"
     }
 
     stages {
-
-        stage('Clone') {
-            steps {
-                git branch: 'main', url: "${GIT_REPO}"
-            }
-        }
-
-        stage('Build Image') {
+        stage('Build & Push') {
             steps {
                 container('docker') {
-                    sh '''
-                    docker version
-                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                    docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                    '''
-                }
-            }
-        }
-
-        stage('Login ACR') {
-            steps {
-                container('docker') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'acr-credentials',
-                        usernameVariable: 'USER',
-                        passwordVariable: 'PASS'
-                    )]) {
-                        sh '''
+                    git branch: 'main', url: "${GIT_REPO}"
+                    withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh """
+                        docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
                         echo $PASS | docker login $ACR_LOGIN_SERVER -u $USER --password-stdin
-                        '''
+                        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                        """
                     }
-                }
-            }
-        }
-
-        stage('Push Image') {
-            steps {
-                container('docker') {
-                    sh '''
-                    docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                    '''
                 }
             }
         }
@@ -107,38 +61,16 @@ spec:
         stage('Deploy') {
             steps {
                 container('kubectl') {
-                    sh '''
-                    export KUBECONFIG=/root/.kube/config
-        
-                    echo "Test connection"
-                    kubectl get nodes
-        
-                    echo "Apply deployment"
+                    sh """
+                    # Update tag di file manifest secara dinamis
+                    sed -i 's|image:.*|image: $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g' deployment.yaml
+                    
                     kubectl apply -f deployment.yaml
                     kubectl apply -f service.yaml
-                    '''
+                    kubectl rollout status deployment/$IMAGE_NAME
+                    """
                 }
             }
-        }
-
-        stage('Check') {
-            steps {
-                container('kubectl') {
-                    sh '''
-                    kubectl get pods -o wide
-                    kubectl get svc
-                    '''
-                }
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "SUCCESS: Build & Deploy berhasil"
-        }
-        failure {
-            echo "FAILED: Cek log stage yang error"
         }
     }
 }

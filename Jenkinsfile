@@ -73,7 +73,7 @@ spec:
                 container('build-tools') {
                     script {
                         sh '''
-                        sed -i 's|\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml
+                        cat deployment.yaml | sed 's|IMAGE_TAG_PLACEHOLDER|${IMAGE_TAG}|g' > deployment.yaml
                         kubectl apply -f deployment.yaml
                         kubectl apply -f service.yaml
                         '''

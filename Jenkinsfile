@@ -24,7 +24,7 @@ spec:
       mountPath: /var/run/docker.sock
 
   - name: kubectl
-    image: bitnami/kubectl:1.28
+    image: registry.k8s.io/kubectl:v1.28.0
     command:
     - sh
     args:

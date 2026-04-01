@@ -106,7 +106,10 @@ spec:
                     sh '''
                     export KUBECONFIG=/root/.kube/config
         
+                    echo "Test connection"
                     kubectl get nodes
+        
+                    echo "Apply deployment"
                     kubectl apply -f deployment.yaml
                     kubectl apply -f service.yaml
                     '''

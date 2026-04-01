@@ -6,14 +6,17 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:latest
+  - name: docker
+    image: docker:24.0.5
     command:
-    - /busybox/sh
+    - sh
     args:
     - -c
     - sleep 999999
     tty: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
 
   - name: kubectl
     image: bitnami/kubectl:latest
@@ -23,6 +26,11 @@ spec:
     - -c
     - sleep 999999
     tty: true
+
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
 """
         }
     }
@@ -42,35 +50,39 @@ spec:
             }
         }
 
-        stage('Build & Push (Kaniko)') {
+        stage('Build Image') {
             steps {
-                container('kaniko') {
+                container('docker') {
+                    sh '''
+                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                    docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Login ACR') {
+            steps {
+                container('docker') {
                     withCredentials([usernamePassword(
                         credentialsId: 'acr-credentials',
                         usernameVariable: 'USER',
                         passwordVariable: 'PASS'
                     )]) {
                         sh '''
-                        mkdir -p /kaniko/.docker
-
-                        cat <<EOF > /kaniko/.docker/config.json
-{
-  "auths": {
-    "$ACR_LOGIN_SERVER": {
-      "username": "$USER",
-      "password": "$PASS"
-    }
-  }
-}
-EOF
-
-                        /kaniko/executor \
-                          --dockerfile=Dockerfile \
-                          --context=$(pwd) \
-                          --destination=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG \
-                          --skip-tls-verify
+                        echo $PASS | docker login $ACR_LOGIN_SERVER -u $USER --password-stdin
                         '''
                     }
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                container('docker') {
+                    sh '''
+                    docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                    '''
                 }
             }
         }

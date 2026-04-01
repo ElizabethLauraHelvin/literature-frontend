@@ -6,26 +6,21 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-  - name: docker-client
+  - name: build-tools
+    # Image resmi docker yang ringan dan stabil
     image: docker:24.0.5
     command: ["cat"]
     tty: true
     securityContext:
       privileged: true
+    # Memberi RAM 2GB agar npm install tidak pingsan (OOM)
     resources:
-      requests:
-        memory: "1Gi"
-        cpu: "500m"
       limits:
-        memory: "2Gi" 
+        memory: "2Gi"
         cpu: "1000m"
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
-  - name: kubectl-client
-    image: bitnami/kubectl:latest
-    command: ["cat"]
-    tty: true
   volumes:
   - name: docker-sock
     hostPath:
@@ -37,42 +32,62 @@ spec:
     environment {
         ACR_SERVER = "elizabethacr.azurecr.io"
         APP_NAME   = "literature-frontend"
-        IMAGE_TAG  = "v${env.BUILD_NUMBER}"
+        IMAGE_TAG  = "v${env.BUILD_NUMBER}" // Label versi otomatis (v1, v2, dst)
     }
 
     stages {
-        stage('Build & Push ACR') {
+        stage('Setup Tools') {
             steps {
-                // Gunakan container 'docker-client' untuk proses build
-                container('docker-client') {
+                container('build-tools') {
                     script {
-                        sh "docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} ."
-                        
+                        // Install kubectl secara instan di dalam pod agent
+                        sh '''
+                        apk add --no-cache curl
+                        curl -Lo /usr/local/bin/kubectl "https://googleapis.com"
+                        chmod +x /usr/local/bin/kubectl
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Build & Push to ACR') {
+            steps {
+                container('build-tools') {
+                    script {
+                        // Login ke Azure Container Registry
                         withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                            sh "echo ${PASS} | docker login ${ACR_SERVER} -u ${USER} --password-stdin"
-                            sh "docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}"
+                            sh """
+                            docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} .
+                            echo "${PASS}" | docker login ${ACR_SERVER} -u ${USER} --password-stdin
+                            docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}
+                            """
                         }
                     }
                 }
             }
         }
 
-        stage('Deploy to K8s') {
+        stage('Deploy to Kubernetes') {
             steps {
-                // Pindah ke container 'kubectl-client' untuk proses deploy
-                container('kubectl-client') {
+                container('build-tools') {
                     script {
-                        // Update tag di deployment.yaml
+                        // 1. Ganti tulisan ${IMAGE_TAG} di file yaml dengan versi build terbaru
                         sh "sed -i 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml"
                         
-                        // Jalankan apply
+                        // 2. Terapkan perubahan ke Cluster
                         sh "kubectl apply -f deployment.yaml"
                         sh "kubectl apply -f service.yaml"
                         
-                        echo "DEPLOYMENT BERHASIL: ${IMAGE_TAG}"
+                        echo "MANTAP! Aplikasi sudah terdeploy dengan tag: ${IMAGE_TAG}"
                     }
                 }
             }
         }
+    }
+
+    post {
+        success { echo "Pipeline Berhasil!" }
+        failure { echo "Pipeline Gagal, cek log di atas." }
     }
 }

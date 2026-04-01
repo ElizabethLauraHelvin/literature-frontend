@@ -47,7 +47,7 @@ spec:
             steps {
                 container('docker-kubectl') {
                     script {
-                        // FIX URL KUBECTL: Menggunakan URL langsung agar stabil
+                        // FIX: URL Direct Download Kubectl yang benar
                         sh '''
                         apk add --no-cache curl
                         curl -LO "https://k8s.io"
@@ -64,13 +64,13 @@ spec:
                         }
 
                         sh """
-                        # Gunakan double quotes agar variable terbaca shell
+                        # Pastikan file deployment.yaml ada di repo githubmu
                         sed -i "s|image:.*|image: ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
                         
                         kubectl apply -f deployment.yaml
                         kubectl apply -f service.yaml
                         
-                        echo "Deployment Berhasil ke Versi: ${IMAGE_TAG}"
+                        echo "Berhasil Deploy Versi: ${IMAGE_TAG}"
                         """
                     }
                 }
@@ -79,11 +79,7 @@ spec:
     }
     
     post {
-        success {
-            echo "Pipeline Berhasil!"
-        }
-        failure {
-            echo "Pipeline Gagal, cek log di atas."
-        }
+        success { echo "Pipeline Selesai dengan Sukses!" }
+        failure { echo "Pipeline Gagal, periksa log di atas." }
     }
 }

@@ -7,6 +7,7 @@ kind: Pod
 spec:
   containers:
   - name: build-tools
+    # Image ini berisi Docker, sehingga bisa build & push
     image: docker:24.0.5
     command: ["cat"]
     tty: true
@@ -30,26 +31,25 @@ spec:
     }
 
     stages {
-        stage('Setup & Build') {
+        stage('Install Kubectl & Build') {
             steps {
                 container('build-tools') {
                     script {
-                        // 1. Install Kubectl (Direct Download)
+                        // 1. Install Kubectl di dalam container (hanya butuh 5 detik)
                         sh '''
                         apk add --no-cache curl
-                        curl -Lo kubectl "https://k8s.io"
-                        chmod +x kubectl
-                        mv kubectl /usr/local/bin/
-                        kubectl version --client
+                        curl -Lo /usr/local/bin/kubectl "https://k8s.io"
+                        chmod +x /usr/local/bin/kubectl
                         '''
 
-                        // 2. Build & Push ke ACR
-                        withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'ACR_USER', passwordVariable: 'ACR_PASS')]) {
-                            sh """
-                            docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
-                            echo "$ACR_PASS" | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
-                            docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                            """
+                        // 2. Build & Tag
+                        sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                        sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                        // 3. Login & Push ACR
+                        withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                            sh "echo ${PASS} | docker login ${ACR_LOGIN_SERVER} -u ${USER} --password-stdin"
+                            sh "docker push ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -59,23 +59,16 @@ spec:
         stage('Deploy') {
             steps {
                 container('build-tools') {
-                    sh """
-                    # Update manifest (Gunakan double quotes agar tag terbaca)
-                    sed -i "s|image:.*|image: $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g" deployment.yaml
-                    
-                    # Apply ke Kubernetes
-                    kubectl apply -f deployment.yaml
-                    kubectl apply -f service.yaml
-                    
-                    echo "Deployment Berhasil ke Versi: $IMAGE_TAG"
-                    """
+                    script {
+                        // Update manifest (sed mencari tulisan ${IMAGE_TAG} di yaml)
+                        sh "sed -i 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' deployment.yaml"
+                        
+                        // Deploy (Kubectl otomatis pakai ServiceAccount Jenkins untuk akses cluster)
+                        sh "kubectl apply -f deployment.yaml"
+                        sh "kubectl apply -f service.yaml"
+                    }
                 }
             }
         }
-    }
-
-    post {
-        success { echo "HORE! Pipeline Sukses." }
-        failure { echo "YAH! Pipeline Gagal." }
     }
 }

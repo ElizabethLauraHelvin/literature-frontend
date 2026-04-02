@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent{
+        kubernetes{
+            label 'docker-agent'
+        }
+    }
 
     environment {
         ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
@@ -18,11 +22,12 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                /usr/bin/docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                /usr/bin/docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                '''
-              
+                container('docker') {
+                    sh '''
+                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                    docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
             }
         }
 

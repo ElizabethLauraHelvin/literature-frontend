@@ -16,6 +16,13 @@ spec:
         - name: acr-secret
       containers:
         - name: literature-frontend
-          image: elizabethacr.azurecr.io/literature-frontend:IMAGE_TAG_PLACEHOLDER
+          image: elizabethacr.azurecr.io/literature-frontend:latest
           ports:
             - containerPort: 3000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

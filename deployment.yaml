@@ -16,7 +16,7 @@ spec:
         - name: acr-secret
       containers:
         - name: literature-frontend
-          image: elizabethacr.azurecr.io/literature-frontend:latest
+          image: elizabethacr.azurecr.io/literature-frontend:v1.0.0
           ports:
             - containerPort: 3000
           resources:

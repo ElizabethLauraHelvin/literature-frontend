@@ -19,6 +19,10 @@ spec:
           image: elizabethacr.azurecr.io/literature-frontend:v1.0.0
           ports:
             - containerPort: 3000
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+          
           resources:
             requests:
               cpu: "100m"

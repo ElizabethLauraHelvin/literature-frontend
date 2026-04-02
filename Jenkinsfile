@@ -19,7 +19,7 @@ pipeline {
         stage('Build Image') {
             steps {
                 sh """
-                docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
+                docker build -t ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG} .
                 """
             }
         }
@@ -41,7 +41,7 @@ pipeline {
         stage('Push Image') {
             steps {
                 sh """
-                docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                docker push ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}
                 """
             }
         }
@@ -51,7 +51,7 @@ pipeline {
                 withKubeConfig([credentialsId: 'kubeconfig']) {
                     sh """
                     kubectl set image deployment/literature-frontend \
-                      literature-frontend=$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                      literature-frontend=${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}
 
                     kubectl rollout status deployment/literature-frontend
                     """

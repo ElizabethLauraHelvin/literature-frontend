@@ -1,90 +1,94 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: build-tools
-    # Image resmi docker yang ringan dan stabil
-    image: docker:24.0.5
-    command: ["cat"]
-    tty: true
-    securityContext:
-      privileged: true
-    # Memberi RAM 2GB agar npm install tidak pingsan (OOM)
-    resources:
-      limits:
-        memory: "2Gi"
-        cpu: "1000m"
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-"""
-        }
-    }
+    agent any
 
     environment {
-        ACR_SERVER = "elizabethacr.azurecr.io"
-        APP_NAME   = "literature-frontend"
-        IMAGE_TAG  = "v${env.BUILD_NUMBER}" // Label versi otomatis (v1, v2, dst)
+        ACR_LOGIN_SERVER = "elizabethacr.azurecr.io"
+        IMAGE_NAME = "literature-frontend"
+        IMAGE_TAG = "v1.0.0"
+        GIT_REPO = "https://github.com/ElizabethLauraHelvin/literature-frontend.git"
     }
 
     stages {
-       stage('Setup Tools') {
+
+        stage('Pull Code') {
             steps {
-                container('build-tools') {
+                git branch: 'main', url: "${GIT_REPO}"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
+                '''
+            }
+        }
+
+        stage('Login to ACR') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr-creds',
+                    usernameVariable: 'ACR_USER',
+                    passwordVariable: 'ACR_PASS'
+                )]) {
                     sh '''
-                    apk add --no-cache curl
-        
-                    curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
-                    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-        
-                    kubectl version --client
+                    echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
                     '''
                 }
             }
         }
 
-        stage('Build & Push to ACR') {
+        stage('Push Image to ACR') {
             steps {
-                container('build-tools') {
-                    script {
-                        // Login ke Azure Container Registry
-                        withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                            sh """
-                            docker build -t ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG} .
-                            echo "${PASS}" | docker login ${ACR_SERVER} -u ${USER} --password-stdin
-                            docker push ${ACR_SERVER}/${APP_NAME}:${IMAGE_TAG}
-                            """
-                        }
-                    }
+                sh '''
+                docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Create Image Pull Secret') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr-creds',
+                    usernameVariable: 'ACR_USER',
+                    passwordVariable: 'ACR_PASS'
+                )]) {
+                    sh '''
+                    kubectl delete secret acr-secret || true
+
+                    kubectl create secret docker-registry acr-secret \
+                      --docker-server=$ACR_LOGIN_SERVER \
+                      --docker-username=$ACR_USER \
+                      --docker-password=$ACR_PASS \
+                      --docker-email=test@test.com
+                    '''
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                container('build-tools') {
-                    script {
-                        sh '''
-                        cat deployment.yaml | sed 's|IMAGE_TAG_PLACEHOLDER|${IMAGE_TAG}|g' > deployment.yaml
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
-                        '''
-                    }
-                }
+                sh '''
+                sed -i "s|IMAGE_TAG_PLACEHOLDER|$IMAGE_TAG|g" deployment.yaml
+
+                kubectl apply -f deployment.yaml
+                kubectl apply -f service.yaml
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                kubectl get pods
+                kubectl get svc
+                '''
             }
         }
     }
 
     post {
-        success { echo "Pipeline Berhasil!" }
-        failure { echo "Pipeline Gagal, cek log di atas." }
+        success { echo "Deployment sukses" }
+        failure { echo "Deployment gagal" }
     }
 }

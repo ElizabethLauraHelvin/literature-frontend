@@ -59,30 +59,34 @@ pipeline {
 
         stage('Create Image Pull Secret (K8s)') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'acr-creds',
-                    usernameVariable: 'ACR_USER',
-                    passwordVariable: 'ACR_PASS'
-                )]) {
-                    sh '''
-                    kubectl delete secret acr-secret || true
-
-                    kubectl create secret docker-registry acr-secret \
-                      --docker-server=$ACR_LOGIN_SERVER \
-                      --docker-username=$ACR_USER \
-                      --docker-password=$ACR_PASS \
-                      --docker-email=test@test.com
-                    '''
+                container ('kubectl'){
+                    withCredentials([usernamePassword(
+                        credentialsId: 'acr-creds',
+                        usernameVariable: 'ACR_USER',
+                        passwordVariable: 'ACR_PASS'
+                    )]) {
+                        sh '''
+                        kubectl delete secret acr-secret || true
+    
+                        kubectl create secret docker-registry acr-secret \
+                          --docker-server=$ACR_LOGIN_SERVER \
+                          --docker-username=$ACR_USER \
+                          --docker-password=$ACR_PASS \
+                          --docker-email=test@test.com
+                        '''
+                    }
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                kubectl apply -f deployment.yaml
-                kubectl apply -f service.yaml
-                '''
+                container ('kubectl'){
+                    sh '''
+                    kubectl apply -f deployment.yaml
+                    kubectl apply -f service.yaml
+                    '''
+                }
             }
         }
 

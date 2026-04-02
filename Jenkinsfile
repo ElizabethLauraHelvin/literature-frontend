@@ -38,18 +38,22 @@ pipeline {
                     usernameVariable: 'ACR_USER',
                     passwordVariable: 'ACR_PASS'
                 )]) {
-                    sh '''
-                    echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
-                    '''
+                    container('docker') {
+                        sh '''
+                        echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
+                        '''
+                    }
                 }
             }
         }
 
         stage('Push Image to ACR') {
             steps {
-                sh '''
-                docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
-                '''
+                container('docker') {
+                    sh '''
+                    docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
             }
         }
 

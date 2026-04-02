@@ -20,7 +20,7 @@ pipeline {
             steps {
                 sh '''
                 /usr/bin/docker build -t $IMAGE_NAME:$IMAGE_TAG .
-               /usr/bin/docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+                /usr/bin/docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
                 '''
               
             }

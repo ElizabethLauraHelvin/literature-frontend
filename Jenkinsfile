@@ -16,33 +16,27 @@ pipeline {
             }
         }
 
-        stage('Build Image') {
+        stage('Build & Push Image (Kaniko)') {
             steps {
-                sh """
-                docker build -t ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG} .
-                """
-            }
-        }
+                container('kaniko') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'acr-creds',
+                        usernameVariable: 'ACR_USER',
+                        passwordVariable: 'ACR_PASS'
+                    )]) {
 
-        stage('Login ACR') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'acr-creds',
-                    usernameVariable: 'ACR_USER',
-                    passwordVariable: 'ACR_PASS'
-                )]) {
-                    sh """
-                    echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
-                    """
+                        sh """
+                        mkdir -p /kaniko/.docker
+
+                        echo '{"auths":{"${ACR_LOGIN_SERVER}":{"username":"${ACR_USER}","password":"${ACR_PASS}"}}}' > /kaniko/.docker/config.json
+
+                        /kaniko/executor \
+                          --context `pwd` \
+                          --dockerfile `pwd`/Dockerfile \
+                          --destination=${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}
+                        """
+                    }
                 }
-            }
-        }
-
-        stage('Push Image') {
-            steps {
-                sh """
-                docker push ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}
-                """
             }
         }
 

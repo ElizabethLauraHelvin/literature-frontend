@@ -92,10 +92,12 @@ pipeline {
 
         stage('Verify Deployment') {
             steps {
-                sh '''
-                kubectl get pods
-                kubectl get svc
-                '''
+                container ('kubectl'){
+                    sh '''
+                    kubectl get pods
+                    kubectl get svc
+                    '''
+                }
             }
         }
     }

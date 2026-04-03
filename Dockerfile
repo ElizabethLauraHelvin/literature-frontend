@@ -5,6 +5,7 @@ WORKDIR apps
 COPY . .
 
 RUN npm install
+RUN npm run build
 
 RUN npm install pm2 -g
 

@@ -1,14 +1,14 @@
-FROM node:14-alpine
+FROM node:18-alpine
 
-WORKDIR apps
+WORKDIR /app
 
 COPY . .
 
 RUN npm install
 RUN npm run build
 
-RUN npm install pm2 -g
+RUN npm install -g serve
 
 EXPOSE 3000
 
-CMD ["pm2-runtime", "ecosystem.config.js"]
+CMD ["serve", "-s", "build", "-l", "3000"]
